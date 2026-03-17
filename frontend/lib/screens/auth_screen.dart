@@ -47,7 +47,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       // 2. Decide if we are hitting /api/login or /api/signup
-      final String baseUrl = 'https://dsa-analyzer-9zt3.onrender.com/';
+      final String baseUrl = 'https://dsa-analyzer-9zt3.onrender.com';
       final String endpoint = isLogin ? 'login' : 'signup';
       final Uri authUrl = Uri.parse('$baseUrl/api/$endpoint');
 
@@ -75,7 +75,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
         // 5. Now fetch their Codeforces stats using that handle!
         final recommendResponse = await http.get(
-          Uri.parse('${baseUrl}api/recommend/$userHandle'),
+          Uri.parse('${baseUrl}/api/recommend/$userHandle'),
         );
 
         if (recommendResponse.statusCode == 200) {
