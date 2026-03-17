@@ -28,64 +28,85 @@ class _AuthScreenState extends State<AuthScreen> {
   final TextEditingController passwordController = TextEditingController();
 
   Future<void> submitForm() async {
-    final handle = handleController.text.trim();
-    if (handle.isEmpty) {
+    // 1. Basic validation
+    if (!isLogin && handleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your Codeforces Handle')),
+        const SnackBar(content: Text('Please enter a Codeforces Handle')),
+      );
+      return;
+    }
+    if (emailController.text.trim().isEmpty ||
+        passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter Email and Password')),
       );
       return;
     }
 
-    // Turn on the loading spinner
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => isLoading = true);
 
     try {
-      // 1. Ask the Node.js backend for the data
-      final response = await http.get(
-        Uri.parse('http://localhost:5000/api/recommend/$handle'),
+      // 2. Decide if we are hitting /api/login or /api/signup
+      final String endpoint = isLogin ? 'login' : 'signup';
+      final Uri authUrl = Uri.parse('http://localhost:5000/api/$endpoint');
+
+      // 3. Prepare the data to send to Node.js
+      final Map<String, dynamic> requestBody = {
+        'email': emailController.text.trim(),
+        'password': passwordController.text,
+      };
+      if (!isLogin) {
+        requestBody['codeforcesHandle'] = handleController.text.trim();
+      }
+
+      // 4. Send the POST request to your database
+      final authResponse = await http.post(
+        authUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
       );
 
-      if (response.statusCode == 200) {
-        // 2. Convert the text response into a Dart Map (JSON)
-        final data = jsonDecode(response.body);
+      final authData = jsonDecode(authResponse.body);
 
-        // 3. Navigate to the Dashboard and pass the data
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DashboardScreen(userData: data),
-            ),
-          );
+      if (authResponse.statusCode == 200 || authResponse.statusCode == 201) {
+        // SUCCESS! The database verified them and gave us their handle
+        final String userHandle = authData['handle'];
+
+        // 5. Now fetch their Codeforces stats using that handle!
+        final recommendResponse = await http.get(
+          Uri.parse('http://localhost:5000/api/recommend/$userHandle'),
+        );
+
+        if (recommendResponse.statusCode == 200) {
+          final dashboardData = jsonDecode(recommendResponse.body);
+
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DashboardScreen(userData: dashboardData),
+              ),
+            );
+          }
         }
       } else {
-        // Handle backend errors (like a 404 User Not Found)
+        // Failed Login/Signup (e.g. wrong password, email already exists)
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error: Could not find user or analyze profile.'),
-            ),
+            SnackBar(content: Text('Error: ${authData['error']}')),
           );
         }
       }
     } catch (e) {
-      // Handle network errors (like if your Node server isn't running)
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Network Error: Make sure backend is running. ($e)'),
+            content: Text('Network Error: Check if backend is running. ($e)'),
           ),
         );
       }
     } finally {
-      // Turn off the loading spinner
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -119,79 +140,85 @@ class _AuthScreenState extends State<AuthScreen> {
                 Text(
                   isLogin ? 'Welcome Back' : 'Join DSA Helper',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enter your details to analyze your profile.',
+                  isLogin 
+                    ? 'Log in to view your targeted problem sets.' 
+                    : 'Enter your details to analyze your profile.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[400], fontSize: 14),
                 ),
                 const SizedBox(height: 32),
-
-                if (!isLogin) ...[
-                  TextField(
-                    controller: emailController,
-                    decoration: const InputDecoration(
-                      hintText: 'Email Address',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(hintText: 'Password'),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
+                
+                // 1. Email (Always visible)
                 TextField(
-                  controller: handleController,
+                  controller: emailController,
                   decoration: const InputDecoration(
-                    hintText: 'Codeforces Handle (e.g. tourist)',
-                    prefixIcon: Icon(Icons.person_outline, color: Colors.grey),
+                    hintText: 'Email Address',
+                    prefixIcon: Icon(Icons.email_outlined, color: Colors.grey),
                   ),
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: isLoading ? null : submitForm,
-                  child: isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          isLogin
-                              ? 'Analyze Profile'
-                              : 'Create Account & Analyze',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                const SizedBox(height: 16),
+                
+                // 2. Password (Always visible)
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Password',
+                    prefixIcon: Icon(Icons.lock_outline, color: Colors.grey),
+                  ),
                 ),
                 const SizedBox(height: 16),
 
+                // 3. Handle (ONLY visible during Sign Up!)
+                if (!isLogin) ...[
+                  TextField(
+                    controller: handleController,
+                    decoration: const InputDecoration(
+                      hintText: 'Codeforces Handle (e.g. tourist)',
+                      prefixIcon: Icon(Icons.person_outline, color: Colors.grey),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                const SizedBox(height: 8),
+                
+                // 4. Submit Button
+                ElevatedButton(
+                  onPressed: isLoading ? null : submitForm,
+                  child: isLoading 
+                    ? const SizedBox(
+                        height: 20, 
+                        width: 20, 
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                      )
+                    : Text(
+                        isLogin ? 'Log In' : 'Create Account',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                ),
+                const SizedBox(height: 16),
+                
+                // 5. Toggle State Button
                 TextButton(
                   onPressed: () {
                     setState(() {
                       isLogin = !isLogin;
+                      // Clear fields when switching modes
+                      emailController.clear();
+                      passwordController.clear();
+                      handleController.clear();
                     });
                   },
                   child: Text(
-                    isLogin
-                        ? "Don't have an account? Sign Up"
-                        : "Already have an account? Log In",
+                    isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In",
                     style: const TextStyle(color: Colors.grey),
                   ),
-                ),
+                )
               ],
             ),
           ),
