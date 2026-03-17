@@ -8,10 +8,20 @@ const mongoose = require('mongoose'); // The MongoDB library
 const app = express();
 // This tells the app: "Use the port provided by Render, OR use 5000 if running locally"
 const PORT = process.env.PORT || 5000;
-
+// 2. Use this specific configuration
 app.use(cors({
-    origin: '*', // This allows all websites (like your Flutter web build) to talk to your API
+    origin: '*',
+    methods: ['GET', 'POST', 'DELETE', 'UPDATE', 'PUT', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
 }));
+
+// 3. Optional: Add a manual header just to be safe
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    next();
+});
 app.use(express.json());
 
 // --- MONGODB CONNECTION ---
