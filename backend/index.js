@@ -9,7 +9,9 @@ const app = express();
 // This tells the app: "Use the port provided by Render, OR use 5000 if running locally"
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+    origin: '*', // This allows all websites (like your Flutter web build) to talk to your API
+}));
 app.use(express.json());
 
 // --- MONGODB CONNECTION ---
